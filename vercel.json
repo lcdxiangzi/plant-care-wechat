@@ -2,8 +2,23 @@
   "version": 2,
   "routes": [
     {
+      "src": "/test.html",
+      "dest": "/public/test.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/client/dist/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
     }
   ]
 }
