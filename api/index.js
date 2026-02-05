@@ -1,4 +1,4 @@
-// Vercel API入口文件
+// Vercel Serverless Function入口
 const app = require('../server/index.js');
 
 module.exports = app;
