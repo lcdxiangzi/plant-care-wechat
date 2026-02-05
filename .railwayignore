@@ -1,0 +1,42 @@
+# Railway部署忽略文件
+
+# 文档文件
+*.md
+*.txt
+*.bat
+*.sh
+
+# 设计文件
+*.pjb
+*.prj
+*.pdb
+*.pdm
+*.rp
+
+# 临时文件
+*.zip
+*.tmp
+
+# 开发工具配置
+.vscode/
+.idea/
+
+# 测试覆盖率
+coverage/
+
+# 日志文件
+logs/
+*.log
+
+# 环境变量文件（敏感信息）
+.env
+.env.*
+
+# Git文件
+.git/
+.gitignore
+
+# 不需要的配置文件
+vercel.json
+netlify.toml
+nixpacks.toml
