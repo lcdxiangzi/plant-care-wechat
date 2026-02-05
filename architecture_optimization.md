@@ -1,0 +1,63 @@
+# 技术架构优化方案
+
+## 数据库设计优化
+
+### 新增表结构建议
+
+```sql
+-- 地区管理表（支持全国服务）
+CREATE TABLE T_REGION (
+    REGION_CODE VARCHAR(10) PRIMARY KEY,
+    REGION_NAME VARCHAR(50),
+    PARENT_CODE VARCHAR(10),
+    REGION_LEVEL INT, -- 1省 2市 3区县
+    IS_ACTIVE BOOLEAN DEFAULT TRUE
+);
+
+-- 植物知识库表
+CREATE TABLE T_PLANT_KNOWLEDGE (
+    KNOWLEDGE_ID VARCHAR(32) PRIMARY KEY,
+    PLANT_TYPE VARCHAR(32),
+    TITLE VARCHAR(128),
+    CONTENT TEXT,
+    IMAGES VARCHAR(1024),
+    AUTHOR VARCHAR(64),
+    CREATE_TIME DATETIME,
+    VIEW_COUNT INT DEFAULT 0
+);
+
+-- 用户行为记录表
+CREATE TABLE T_USER_BEHAVIOR (
+    BEHAVIOR_ID VARCHAR(32) PRIMARY KEY,
+    OPENID VARCHAR(128),
+    BEHAVIOR_TYPE VARCHAR(32), -- VIEW, LIKE, SHARE, ADOPT
+    TARGET_ID VARCHAR(32),
+    TARGET_TYPE VARCHAR(32), -- PLANT, KNOWLEDGE, USER
+    CREATE_TIME DATETIME
+);
+
+-- 系统消息表
+CREATE TABLE T_SYSTEM_MESSAGE (
+    MESSAGE_ID VARCHAR(32) PRIMARY KEY,
+    OPENID VARCHAR(128),
+    MESSAGE_TYPE VARCHAR(32), -- CARE_REMIND, SYSTEM_NOTICE
+    TITLE VARCHAR(128),
+    CONTENT VARCHAR(1024),
+    IS_READ BOOLEAN DEFAULT FALSE,
+    CREATE_TIME DATETIME
+);
+```
+
+## 系统架构设计
+
+### 微服务架构建议
+- **用户服务**：用户管理、认证授权
+- **植物服务**：植物信息管理、认领逻辑
+- **内容服务**：知识库、消息推送
+- **数据服务**：行为分析、统计报表
+
+### 技术栈选择
+- **后端**：Spring Boot + MySQL + Redis
+- **前端**：微信小程序原生开发
+- **部署**：Docker + 云服务器集群
+- **CDN**：图片、视频内容分发

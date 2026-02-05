@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>植物养护助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            font-weight: 300;
+        }
+        
+        .subtitle {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .status-ok {
+            color: #4ade80;
+        }
+        
+        .status-loading {
+            color: #fbbf24;
+        }
+        
+        .api-test {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+        }
+        
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .version {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🌱</div>
+        <h1>植物养护助手</h1>
+        <p class="subtitle">AI驱动的智能植物管理系统</p>
+        
+        <div class="status">
+            <div class="status-item">
+                <span>服务状态:</span>
+                <span id="server-status" class="status-loading">检查中...</span>
+            </div>
+            <div class="status-item">
+                <span>数据库:</span>
+                <span id="db-status" class="status-loading">检查中...</span>
+            </div>
+            <div class="status-item">
+                <span>AI服务:</span>
+                <span id="ai-status" class="status-loading">检查中...</span>
+            </div>
+        </div>
+        
+        <div>
+            <button class="btn" onclick="testAPI()">测试API</button>
+            <button class="btn" onclick="checkHealth()">健康检查</button>
+        </div>
+        
+        <div class="api-test" id="api-result" style="display: none;">
+            <h3>API测试结果</h3>
+            <pre id="api-output"></pre>
+        </div>
+        
+        <div class="version">
+            版本 1.0.0 | 部署时间: <span id="deploy-time"></span>
+        </div>
+    </div>
+
+    <script>
+        // 设置部署时间
+        document.getElementById('deploy-time').textContent = new Date().toLocaleString('zh-CN');
+        
+        // 页面加载时自动检查健康状态
+        window.onload = function() {
+            checkHealth();
+        };
+        
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                if (data.status === 'ok' || data.status === 'healthy') {
+                    document.getElementById('server-status').textContent = '✅ 正常';
+                    document.getElementById('server-status').className = 'status-ok';
+                    
+                    // 检查详细状态
+                    if (data.checks) {
+                        document.getElementById('db-status').textContent = 
+                            data.checks.database === 'ok' ? '✅ 正常' : '⚠️ 异常';
+                        document.getElementById('db-status').className = 
+                            data.checks.database === 'ok' ? 'status-ok' : 'status-loading';
+                            
+                        document.getElementById('ai-status').textContent = 
+                            data.checks.aiService === 'ok' ? '✅ 正常' : '⚠️ 异常';
+                        document.getElementById('ai-status').className = 
+                            data.checks.aiService === 'ok' ? 'status-ok' : 'status-loading';
+                    } else {
+                        document.getElementById('db-status').textContent = '✅ 正常';
+                        document.getElementById('db-status').className = 'status-ok';
+                        document.getElementById('ai-status').textContent = '✅ 正常';
+                        document.getElementById('ai-status').className = 'status-ok';
+                    }
+                } else {
+                    document.getElementById('server-status').textContent = '❌ 异常';
+                    document.getElementById('db-status').textContent = '❌ 异常';
+                    document.getElementById('ai-status').textContent = '❌ 异常';
+                }
+            } catch (error) {
+                document.getElementById('server-status').textContent = '❌ 连接失败';
+                document.getElementById('db-status').textContent = '❌ 未知';
+                document.getElementById('ai-status').textContent = '❌ 未知';
+                console.error('健康检查失败:', error);
+            }
+        }
+        
+        async function testAPI() {
+            const resultDiv = document.getElementById('api-result');
+            const outputPre = document.getElementById('api-output');
+            
+            resultDiv.style.display = 'block';
+            outputPre.textContent = '测试中...';
+            
+            try {
+                // 测试健康检查API
+                const healthResponse = await fetch('/api/health');
+                const healthData = await healthResponse.json();
+                
+                // 测试详细健康检查API
+                const detailedResponse = await fetch('/api/health/detailed');
+                const detailedData = await detailedResponse.json();
+                
+                const result = {
+                    timestamp: new Date().toISOString(),
+                    basicHealth: healthData,
+                    detailedHealth: detailedData,
+                    status: '✅ API测试通过'
+                };
+                
+                outputPre.textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                outputPre.textContent = `❌ API测试失败:\n${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

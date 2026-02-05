@@ -1,0 +1,17 @@
+# Railway环境变量配置
+# 复制以下内容到Railway项目设置 > Variables
+
+NODE_ENV=production
+WECHAT_APP_ID=wx1dd6d394f46a502d
+WECHAT_APP_SECRET=你的微信AppSecret
+WECHAT_TOKEN=plant_care_token_2024
+JWT_SECRET=plant_care_jwt_2024_lcdxiangzi_secure
+BAIDU_API_KEY=你的百度API密钥
+BAIDU_SECRET_KEY=你的百度Secret密钥
+USE_MEMORY_DB=true
+
+# 注意：
+# 1. 不要包含这些注释行
+# 2. 替换"你的微信AppSecret"为真实值
+# 3. 替换百度密钥为真实值
+# 4. 每行一个变量，格式: KEY=VALUE
