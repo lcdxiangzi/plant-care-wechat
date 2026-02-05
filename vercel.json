@@ -6,6 +6,10 @@
       "dest": "/public/test.html"
     },
     {
+      "src": "/api/status",
+      "dest": "/api/status.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/client/dist/index.html"
     }
