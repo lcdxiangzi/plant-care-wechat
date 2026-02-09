@@ -1,6 +1,8 @@
 const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
+const fs = require('fs').promises;
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,6 +11,106 @@ const PORT = process.env.PORT || 3000;
 const WECHAT_TOKEN = process.env.WECHAT_TOKEN || 'plant_care_token_2024';
 const WECHAT_APPID = process.env.WECHAT_APPID || 'wx1dd6d394f46a502d';
 const WECHAT_APPSECRET = process.env.WECHAT_APPSECRET || '';
+
+// 数据文件路径
+const DATA_DIR = path.join(__dirname, 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+
+// 确保数据目录存在
+async function ensureDataDir() {
+  try {
+    await fs.access(DATA_DIR);
+  } catch {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+  }
+}
+
+// 读取用户数据
+async function loadUserData() {
+  try {
+    await ensureDataDir();
+    const data = await fs.readFile(USERS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    // 文件不存在或解析失败，返回空对象
+    return {};
+  }
+}
+
+// 保存用户数据
+async function saveUserData(data) {
+  try {
+    await ensureDataDir();
+    await fs.writeFile(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('保存数据失败:', error);
+    return false;
+  }
+}
+
+// 获取用户信息
+async function getUserInfo(openid) {
+  const allData = await loadUserData();
+  if (!allData[openid]) {
+    allData[openid] = {
+      openid: openid,
+      plants: [],
+      createdAt: new Date().toISOString()
+    };
+    await saveUserData(allData);
+  }
+  return allData[openid];
+}
+
+// 添加植物
+async function addPlant(openid, plantName) {
+  const allData = await loadUserData();
+  const user = allData[openid] || {
+    openid: openid,
+    plants: [],
+    createdAt: new Date().toISOString()
+  };
+  
+  const plant = {
+    id: Date.now().toString(),
+    name: plantName,
+    addedAt: new Date().toISOString()
+  };
+  
+  user.plants.push(plant);
+  allData[openid] = user;
+  
+  const saved = await saveUserData(allData);
+  return saved ? plant : null;
+}
+
+// 获取植物列表
+async function getPlants(openid) {
+  const user = await getUserInfo(openid);
+  return user.plants || [];
+}
+
+// 删除植物
+async function deletePlant(openid, plantName) {
+  const allData = await loadUserData();
+  const user = allData[openid];
+  
+  if (!user || !user.plants) {
+    return false;
+  }
+  
+  const initialLength = user.plants.length;
+  user.plants = user.plants.filter(p => p.name !== plantName);
+  
+  if (user.plants.length < initialLength) {
+    allData[openid] = user;
+    await saveUserData(allData);
+    return true;
+  }
+  
+  return false;
+}
 
 // 中间件
 app.use(express.json());
@@ -40,7 +142,7 @@ app.get('/wechat', (req, res) => {
 });
 
 // 微信消息接收接口
-app.post('/wechat', (req, res) => {
+app.post('/wechat', async (req, res) => {
   console.log('收到微信消息');
   console.log('消息内容:', req.body);
   
@@ -69,7 +171,9 @@ app.post('/wechat', (req, res) => {
     if (msgType === 'event') {
       // 处理事件消息
       if (event === 'subscribe') {
-        // 关注事件
+        // 关注事件 - 初始化用户数据
+        await getUserInfo(fromUser);
+        
         replyContent = `🌱 欢迎关注植物养护助手！
 
 感谢您的关注！我们致力于帮助您更好地照顾您的植物。
@@ -79,6 +183,10 @@ app.post('/wechat', (req, res) => {
 2️⃣ 养护知识
 3️⃣ 关于我们
 0️⃣ 显示菜单
+
+💡 快速开始：
+回复"添加 植物名称"来添加您的第一株植物
+例如：添加 绿萝
 
 直接发送消息开始对话！`;
       } else if (event === 'CLICK') {
@@ -95,7 +203,7 @@ app.post('/wechat', (req, res) => {
         } else if (eventKey === 'ABOUT') {
           replyContent = `🌱 关于植物养护助手
 
-版本：v0.1.5
+版本：v0.2.0
 状态：测试版
 
 我们的目标：
@@ -114,8 +222,59 @@ app.post('/wechat', (req, res) => {
       
       console.log('收到文本消息:', content);
       
-      // 关键词匹配
-      if (content === '0' || content === '菜单' || content === 'menu') {
+      // 解析命令
+      if (content.startsWith('添加 ') || content.startsWith('添加')) {
+        // 添加植物
+        const plantName = content.replace(/^添加\s*/, '').trim();
+        
+        if (!plantName) {
+          replyContent = `❌ 请输入植物名称
+
+正确格式：
+添加 植物名称
+
+例如：
+添加 绿萝
+添加 多肉植物`;
+        } else {
+          const plant = await addPlant(fromUser, plantName);
+          if (plant) {
+            replyContent = `✅ 添加成功！
+
+🌱 植物名称：${plantName}
+📅 添加时间：${new Date(plant.addedAt).toLocaleString('zh-CN')}
+
+回复"1"或"我的植物"查看列表
+回复"删除 ${plantName}"可以删除`;
+          } else {
+            replyContent = `❌ 添加失败，请稍后重试`;
+          }
+        }
+      } else if (content.startsWith('删除 ') || content.startsWith('删除')) {
+        // 删除植物
+        const plantName = content.replace(/^删除\s*/, '').trim();
+        
+        if (!plantName) {
+          replyContent = `❌ 请输入要删除的植物名称
+
+正确格式：
+删除 植物名称
+
+例如：
+删除 绿萝`;
+        } else {
+          const deleted = await deletePlant(fromUser, plantName);
+          if (deleted) {
+            replyContent = `✅ 已删除植物：${plantName}
+
+回复"1"或"我的植物"查看剩余植物`;
+          } else {
+            replyContent = `❌ 未找到植物：${plantName}
+
+回复"1"或"我的植物"查看当前列表`;
+          }
+        }
+      } else if (content === '0' || content === '菜单' || content === 'menu') {
         replyContent = `📋 快捷菜单
 
 回复对应数字查看：
@@ -123,19 +282,45 @@ app.post('/wechat', (req, res) => {
 2️⃣ 养护知识
 3️⃣ 关于我们
 
+🌱 植物管理：
+添加 植物名称 - 添加新植物
+删除 植物名称 - 删除植物
+
 直接发送消息开始对话！`;
       } else if (content === '1' || content.includes('我的植物') || content.includes('植物列表')) {
-        replyContent = `🌿 我的植物
+        // 查看植物列表
+        const plants = await getPlants(fromUser);
+        
+        if (plants.length === 0) {
+          replyContent = `🌿 我的植物
 
-功能开发中...
+您还没有添加植物
 
-未来功能：
-📝 添加植物
-📊 查看列表
-⏰ 养护提醒
-📸 成长记录
+💡 快速添加：
+回复"添加 植物名称"
+
+例如：
+添加 绿萝
+添加 多肉植物
+添加 发财树
 
 回复 0 返回菜单`;
+        } else {
+          let plantList = plants.map((p, index) => {
+            const addedDate = new Date(p.addedAt).toLocaleDateString('zh-CN');
+            return `${index + 1}. ${p.name}\n   📅 ${addedDate}`;
+          }).join('\n\n');
+          
+          replyContent = `🌿 我的植物（共${plants.length}株）
+
+${plantList}
+
+💡 管理植物：
+添加 植物名称 - 添加新植物
+删除 植物名称 - 删除植物
+
+回复 0 返回菜单`;
+        }
       } else if (content === '2' || content.includes('养护') || content.includes('知识')) {
         replyContent = `💡 植物养护知识
 
@@ -159,7 +344,7 @@ app.post('/wechat', (req, res) => {
       } else if (content === '3' || content.includes('关于') || content.includes('联系')) {
         replyContent = `🌱 关于植物养护助手
 
-版本：v0.1.5
+版本：v0.2.0
 状态：测试版
 
 📌 项目目标
@@ -184,7 +369,11 @@ AI对话功能开发中...
 回复 0 查看功能菜单
 回复 1 查看我的植物
 回复 2 查看养护知识
-回复 3 查看关于我们`;
+回复 3 查看关于我们
+
+🌿 植物管理：
+添加 植物名称 - 添加新植物
+删除 植物名称 - 删除植物`;
       }
     } else {
       // 其他类型消息
@@ -218,8 +407,8 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.1.7',
-    note: '订阅号使用关键词菜单替代自定义菜单'
+    version: '0.2.0',
+    features: ['关键词菜单', '植物管理', '数据持久化']
   });
 });
 
