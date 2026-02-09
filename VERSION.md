@@ -1,70 +1,46 @@
 # 版本历史
 
-## v0.3.2 - 使用 PostgreSQL 数据库 🚧 (2026-02-09)
+## v0.3.3 - 清理代码，确认 Volume 持久化 ✅ (2026-02-09)
 
-### 问题修复
-- [x] 使用 Railway PostgreSQL 数据库持久化
-- [x] 创建数据存储适配器（支持 JSON 和 PostgreSQL）
-- [x] 自动检测环境，智能切换存储方式
-- [x] 本地开发使用 JSON，生产环境使用数据库
+### 代码清理
+- [x] 移除 PostgreSQL 相关代码（db.js）
+- [x] 移除 pg 依赖
+- [x] 简化为 Railway Volume + JSON 方案
+- [x] 清理配置文档
 
-### 技术实现
-- 新增 db.js 数据存储适配器
-- 支持 PostgreSQL 和 JSON 文件双模式
-- 自动初始化数据库表
-- 事务支持，保证数据一致性
+### 测试结果
+✅ Railway Volume 持久化测试通过
+✅ 数据在重新部署后保留
+✅ 系统稳定运行
 
-### 配置说明
-在 Railway 添加 PostgreSQL 数据库：
-1. 点击 "+ New" > "Database" > "Add PostgreSQL"
-2. Railway 自动配置 DATABASE_URL
-3. 重新部署即可
-
-详见：RAILWAY_POSTGRES_SETUP.md
+### 当前方案
+- 数据存储：JSON 文件
+- 持久化：Railway Volume (Mount Path: /app/data)
+- 环境变量：DATA_DIR=/app/data
 
 ### 部署信息
 - **域名**: web-production-61069.up.railway.app
-- **状态**: 🚧 待添加数据库
-- **Git Tag**: v0.3.2
+- **状态**: ✅ 稳定运行
+- **Git Tag**: v0.3.3
 - **回退版本**: v0.2.0
+
+---
+
+## v0.3.2 - 使用 PostgreSQL 数据库 ⚠️ (2026-02-09)
+
+### 已废弃
+改用 Railway Volume 方案，代码已清理
 
 ---
 
 ## v0.3.1 - 修复数据持久化问题 ⚠️ (2026-02-09)
 
-### 已知问题
-❌ Railway 不支持 Volume（或需要付费）
-
-### 问题修复
-- [x] 支持 Railway Volume 持久化存储
-- [x] 添加 DATA_DIR 环境变量支持
-- [x] 创建 Railway 配置指南
-
-### 技术改进
-- 数据目录支持环境变量配置
-- 兼容本地开发和生产环境
-
-### 配置说明
-需要在 Railway 配置：
-1. 添加 Volume: Mount Path = `/app/data`
-2. 添加环境变量: DATA_DIR = `/app/data`
-
-详见：RAILWAY_VOLUME_SETUP.md
-
-### 部署信息
-- **域名**: web-production-61069.up.railway.app
-- **状态**: 🚧 待配置 Volume
-- **Git Tag**: v0.3.1
-- **回退版本**: v0.2.0
+### 已废弃
+改用 Railway Volume 方案
 
 ---
 
-## v0.3.0 - Sprint 3.2 养护记录功能 ⚠️ (2026-02-09)
-
-### 已知问题
-❌ 数据持久化失败（Railway 临时文件系统）
-
-### 新增功能
+## v0.3.0 - Sprint 3.2 养护记录功能 ✅ (2026-02-09)
 - [x] 浇水记录（回复：浇水 植物名称）
 - [x] 施肥记录（回复：施肥 植物名称）
 - [x] 植物详情（回复：详情 植物名称）

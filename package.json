@@ -1,6 +1,6 @@
 {
   "name": "plant-care-wechat",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "植物养护微信公众号 - 支持养护记录",
   "main": "index.js",
   "scripts": {
@@ -10,8 +10,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "crypto": "^1.0.1",
-    "axios": "^1.6.2",
-    "pg": "^8.11.3"
+    "axios": "^1.6.2"
   },
   "engines": {
     "node": ">=16.0.0"
