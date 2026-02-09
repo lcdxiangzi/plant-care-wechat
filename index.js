@@ -112,6 +112,81 @@ async function deletePlant(openid, plantName) {
   return false;
 }
 
+// 添加养护记录
+async function addCareRecord(openid, plantName, careType) {
+  const allData = await loadUserData();
+  const user = allData[openid];
+  
+  if (!user || !user.plants) {
+    return null;
+  }
+  
+  const plant = user.plants.find(p => p.name === plantName);
+  if (!plant) {
+    return null;
+  }
+  
+  // 初始化养护记录数组
+  if (!plant.careRecords) {
+    plant.careRecords = [];
+  }
+  
+  const record = {
+    type: careType,  // 'water' 或 'fertilize'
+    date: new Date().toISOString()
+  };
+  
+  plant.careRecords.push(record);
+  allData[openid] = user;
+  
+  const saved = await saveUserData(allData);
+  return saved ? record : null;
+}
+
+// 获取植物详情（包含养护记录）
+async function getPlantDetail(openid, plantName) {
+  const user = await getUserInfo(openid);
+  const plant = user.plants.find(p => p.name === plantName);
+  return plant || null;
+}
+
+// 获取最后养护时间
+function getLastCareTime(plant, careType) {
+  if (!plant.careRecords || plant.careRecords.length === 0) {
+    return null;
+  }
+  
+  const records = plant.careRecords.filter(r => r.type === careType);
+  if (records.length === 0) {
+    return null;
+  }
+  
+  // 返回最新的记录
+  return records[records.length - 1].date;
+}
+
+// 格式化时间差
+function formatTimeDiff(dateString) {
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffMs = now - date;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours === 0) {
+      return '刚刚';
+    }
+    return `${diffHours}小时前`;
+  } else if (diffDays === 1) {
+    return '昨天';
+  } else if (diffDays < 7) {
+    return `${diffDays}天前`;
+  } else {
+    return date.toLocaleDateString('zh-CN');
+  }
+}
+
 // 中间件
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -188,6 +263,11 @@ app.post('/wechat', async (req, res) => {
 回复"添加 植物名称"来添加您的第一株植物
 例如：添加 绿萝
 
+💧 养护记录：
+浇水 植物名称 - 记录浇水
+施肥 植物名称 - 记录施肥
+详情 植物名称 - 查看养护历史
+
 直接发送消息开始对话！`;
       } else if (event === 'CLICK') {
         // 菜单点击事件（服务号/认证订阅号才有）
@@ -203,7 +283,7 @@ app.post('/wechat', async (req, res) => {
         } else if (eventKey === 'ABOUT') {
           replyContent = `🌱 关于植物养护助手
 
-版本：v0.2.0
+版本：v0.3.0
 状态：测试版
 
 我们的目标：
@@ -274,6 +354,112 @@ app.post('/wechat', async (req, res) => {
 回复"1"或"我的植物"查看当前列表`;
           }
         }
+      } else if (content.startsWith('浇水 ') || content.startsWith('浇水')) {
+        // 记录浇水
+        const plantName = content.replace(/^浇水\s*/, '').trim();
+        
+        if (!plantName) {
+          replyContent = `❌ 请输入植物名称
+
+正确格式：
+浇水 植物名称
+
+例如：
+浇水 绿萝`;
+        } else {
+          const record = await addCareRecord(fromUser, plantName, 'water');
+          if (record) {
+            replyContent = `✅ 浇水记录成功！
+
+🌱 植物：${plantName}
+💧 浇水时间：${new Date(record.date).toLocaleString('zh-CN')}
+
+回复"详情 ${plantName}"查看养护历史`;
+          } else {
+            replyContent = `❌ 未找到植物：${plantName}
+
+请先添加植物
+回复"添加 ${plantName}"`;
+          }
+        }
+      } else if (content.startsWith('施肥 ') || content.startsWith('施肥')) {
+        // 记录施肥
+        const plantName = content.replace(/^施肥\s*/, '').trim();
+        
+        if (!plantName) {
+          replyContent = `❌ 请输入植物名称
+
+正确格式：
+施肥 植物名称
+
+例如：
+施肥 绿萝`;
+        } else {
+          const record = await addCareRecord(fromUser, plantName, 'fertilize');
+          if (record) {
+            replyContent = `✅ 施肥记录成功！
+
+🌱 植物：${plantName}
+🌿 施肥时间：${new Date(record.date).toLocaleString('zh-CN')}
+
+回复"详情 ${plantName}"查看养护历史`;
+          } else {
+            replyContent = `❌ 未找到植物：${plantName}
+
+请先添加植物
+回复"添加 ${plantName}"`;
+          }
+        }
+      } else if (content.startsWith('详情 ') || content.startsWith('详情')) {
+        // 查看植物详情
+        const plantName = content.replace(/^详情\s*/, '').trim();
+        
+        if (!plantName) {
+          replyContent = `❌ 请输入植物名称
+
+正确格式：
+详情 植物名称
+
+例如：
+详情 绿萝`;
+        } else {
+          const plant = await getPlantDetail(fromUser, plantName);
+          if (plant) {
+            const addedDate = new Date(plant.addedAt).toLocaleDateString('zh-CN');
+            const lastWater = getLastCareTime(plant, 'water');
+            const lastFertilize = getLastCareTime(plant, 'fertilize');
+            
+            let detailText = `🌱 ${plant.name}
+
+📅 添加时间：${addedDate}
+
+💧 浇水记录：${lastWater ? formatTimeDiff(lastWater) : '暂无记录'}
+🌿 施肥记录：${lastFertilize ? formatTimeDiff(lastFertilize) : '暂无记录'}`;
+
+            // 显示最近5条记录
+            if (plant.careRecords && plant.careRecords.length > 0) {
+              const recentRecords = plant.careRecords.slice(-5).reverse();
+              detailText += '\n\n📋 最近养护：';
+              recentRecords.forEach(r => {
+                const icon = r.type === 'water' ? '💧' : '🌿';
+                const action = r.type === 'water' ? '浇水' : '施肥';
+                const time = formatTimeDiff(r.date);
+                detailText += `\n${icon} ${action} - ${time}`;
+              });
+            }
+            
+            detailText += '\n\n💡 快捷操作：';
+            detailText += `\n浇水 ${plantName}`;
+            detailText += `\n施肥 ${plantName}`;
+            detailText += '\n\n回复 0 返回菜单';
+            
+            replyContent = detailText;
+          } else {
+            replyContent = `❌ 未找到植物：${plantName}
+
+回复"1"或"我的植物"查看当前列表`;
+          }
+        }
       } else if (content === '0' || content === '菜单' || content === 'menu') {
         replyContent = `📋 快捷菜单
 
@@ -285,6 +471,11 @@ app.post('/wechat', async (req, res) => {
 🌱 植物管理：
 添加 植物名称 - 添加新植物
 删除 植物名称 - 删除植物
+
+💧 养护记录：
+浇水 植物名称 - 记录浇水
+施肥 植物名称 - 记录施肥
+详情 植物名称 - 查看详情
 
 直接发送消息开始对话！`;
       } else if (content === '1' || content.includes('我的植物') || content.includes('植物列表')) {
@@ -308,12 +499,19 @@ app.post('/wechat', async (req, res) => {
         } else {
           let plantList = plants.map((p, index) => {
             const addedDate = new Date(p.addedAt).toLocaleDateString('zh-CN');
-            return `${index + 1}. ${p.name}\n   📅 ${addedDate}`;
+            const lastWater = getLastCareTime(p, 'water');
+            const waterInfo = lastWater ? `💧 ${formatTimeDiff(lastWater)}` : '💧 未浇水';
+            return `${index + 1}. ${p.name}\n   📅 ${addedDate}\n   ${waterInfo}`;
           }).join('\n\n');
           
           replyContent = `🌿 我的植物（共${plants.length}株）
 
 ${plantList}
+
+💡 养护操作：
+浇水 植物名称 - 记录浇水
+施肥 植物名称 - 记录施肥
+详情 植物名称 - 查看详情
 
 💡 管理植物：
 添加 植物名称 - 添加新植物
@@ -407,8 +605,8 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.2.0',
-    features: ['关键词菜单', '植物管理', '数据持久化']
+    version: '0.3.0',
+    features: ['关键词菜单', '植物管理', '养护记录', '数据持久化']
   });
 });
 
