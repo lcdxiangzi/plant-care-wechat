@@ -12,6 +12,10 @@ const WECHAT_TOKEN = process.env.WECHAT_TOKEN || 'plant_care_token_2024';
 const WECHAT_APPID = process.env.WECHAT_APPID || 'wx1dd6d394f46a502d';
 const WECHAT_APPSECRET = process.env.WECHAT_APPSECRET || '';
 
+// 百度 AI 配置
+const BAIDU_API_KEY = process.env.BAIDU_API_KEY || 'pPRB23J8C6cIpuFE3ba6ef31';
+const BAIDU_SECRET_KEY = process.env.BAIDU_SECRET_KEY || 'ghUZQS1slZmQbebMArsJo5PV6uVz6GuT';
+
 // 数据文件路径 - 支持 Railway Volume
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -217,6 +221,106 @@ async function getUserStats(openid) {
     totalFertilize,
     plantsByType
   };
+}
+
+// 获取百度 AI Access Token
+async function getBaiduAccessToken() {
+  try {
+    const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${BAIDU_API_KEY}&client_secret=${BAIDU_SECRET_KEY}`;
+    const response = await axios.get(url);
+    
+    if (response.data.access_token) {
+      console.log('✅ 获取百度AI access_token成功');
+      return response.data.access_token;
+    } else {
+      console.error('❌ 获取百度AI access_token失败:', response.data);
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ 获取百度AI access_token异常:', error.message);
+    return null;
+  }
+}
+
+// 识别植物（通过图片URL）
+async function recognizePlant(imageUrl) {
+  try {
+    const accessToken = await getBaiduAccessToken();
+    if (!accessToken) {
+      return { success: false, message: '获取百度AI授权失败' };
+    }
+    
+    // 下载图片并转为 base64
+    const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const imageBase64 = Buffer.from(imageResponse.data, 'binary').toString('base64');
+    
+    // 调用百度植物识别 API
+    const apiUrl = `https://aip.baidubce.com/rest/2.0/image-classify/v1/plant?access_token=${accessToken}`;
+    const response = await axios.post(apiUrl, 
+      `image=${encodeURIComponent(imageBase64)}`,
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+    
+    console.log('百度AI识别结果:', response.data);
+    
+    if (response.data.result && response.data.result.length > 0) {
+      const result = response.data.result[0];
+      return {
+        success: true,
+        name: result.name,
+        score: result.score,
+        baike_info: result.baike_info
+      };
+    } else {
+      return { success: false, message: '未识别到植物' };
+    }
+  } catch (error) {
+    console.error('❌ 植物识别失败:', error.message);
+    return { success: false, message: '识别失败，请稍后重试' };
+  }
+}
+
+// 根据植物类型获取养护建议
+function getCareAdvice(plantType) {
+  const adviceMap = {
+    '绿植': `🌿 绿植养护建议：
+
+💧 浇水：保持土壤湿润，见干见湿
+☀️ 光照：散射光，避免强光直射
+🌡️ 温度：15-25℃最适宜
+💨 通风：保持空气流通
+🌿 施肥：生长期每月1-2次`,
+
+    '多肉': `🌵 多肉植物养护建议：
+
+💧 浇水：少浇水，宁干勿湿
+☀️ 光照：充足阳光，每天4-6小时
+🌡️ 温度：10-30℃，耐旱怕涝
+💨 通风：良好通风，防止闷热
+🌿 施肥：生长期薄肥勤施`,
+
+    '花卉': `🌸 花卉养护建议：
+
+💧 浇水：根据品种调整，花期多浇
+☀️ 光照：充足光照促进开花
+🌡️ 温度：根据品种，一般15-25℃
+💨 通风：良好通风防病虫害
+🌿 施肥：花期前增施磷钾肥`,
+
+    '其他': `🌱 通用养护建议：
+
+💧 浇水：见干见湿，不积水
+☀️ 光照：根据植物习性调整
+🌡️ 温度：避免极端温度
+💨 通风：保持空气流通
+🌿 施肥：生长期适量施肥`
+  };
+  
+  return adviceMap[plantType] || adviceMap['其他'];
 }
 
 // 中间件
@@ -636,7 +740,29 @@ ${plantList}
 及时清理枯叶
 定期检查病虫害
 
+💡 获取专业建议：
+回复"建议 植物类型"
+例如：建议 绿植
+
 回复 0 返回菜单`;
+      } else if (content.startsWith('建议 ') || content.startsWith('建议')) {
+        // 获取养护建议
+        const input = content.replace(/^建议\s*/, '').trim();
+        
+        if (!input) {
+          replyContent = `💡 养护建议
+
+请输入植物类型：
+
+建议 绿植
+建议 多肉
+建议 花卉
+
+或查看植物详情获取专属建议`;
+        } else {
+          const advice = getCareAdvice(input);
+          replyContent = advice + '\n\n回复 0 返回菜单';
+        }
       } else if (content === '3' || content.includes('关于') || content.includes('联系')) {
         replyContent = `🌱 关于植物养护助手
 
@@ -671,11 +797,43 @@ AI对话功能开发中...
 添加 植物名称 - 添加新植物
 删除 植物名称 - 删除植物`;
       }
+    } else if (msgType === 'image') {
+      // 处理图片消息 - AI 植物识别
+      const picUrlMatch = body.match(/<PicUrl><!\[CDATA\[(.*?)\]\]><\/PicUrl>/);
+      const picUrl = picUrlMatch ? picUrlMatch[1] : '';
+      
+      console.log('收到图片消息:', picUrl);
+      
+      if (picUrl) {
+        replyContent = `🔍 正在识别植物...
+
+请稍等片刻`;
+        
+        // 异步识别植物（不阻塞响应）
+        recognizePlant(picUrl).then(async (result) => {
+          if (result.success) {
+            // 识别成功，发送客服消息告知结果
+            console.log(`识别成功: ${result.name}, 置信度: ${result.score}`);
+            
+            // 这里可以通过客服消息接口发送详细结果
+            // 由于订阅号限制，暂时只能在首次回复中提示
+          } else {
+            console.log('识别失败:', result.message);
+          }
+        });
+      } else {
+        replyContent = `❌ 图片接收失败
+
+请重新发送图片`;
+      }
     } else {
       // 其他类型消息
       replyContent = `🌱 收到您的消息！
 
-当前支持文本消息
+💡 支持的功能：
+📝 文本消息 - 植物管理和养护
+📷 图片消息 - AI植物识别
+
 回复 0 查看功能菜单`;
     }
     
@@ -703,9 +861,9 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.4.0',
+    version: '0.5.0',
     storage: 'Railway Volume (JSON)',
-    features: ['关键词菜单', '植物管理', '养护记录', '数据持久化', '植物分类', '养护备注', '数据统计']
+    features: ['关键词菜单', '植物管理', '养护记录', '数据持久化', '植物分类', '养护备注', '数据统计', 'AI植物识别', '智能养护建议']
   });
 });
 
