@@ -798,29 +798,43 @@ AI对话功能开发中...
 删除 植物名称 - 删除植物`;
       }
     } else if (msgType === 'image') {
-      // 处理图片消息 - AI 植物识别
+      // 处理图片消息 - AI 植物识别（同步等待结果）
       const picUrlMatch = body.match(/<PicUrl><!\[CDATA\[(.*?)\]\]><\/PicUrl>/);
       const picUrl = picUrlMatch ? picUrlMatch[1] : '';
       
       console.log('收到图片消息:', picUrl);
       
       if (picUrl) {
-        replyContent = `🔍 正在识别植物...
-
-请稍等片刻`;
+        // 同步识别植物，等待结果后再回复
+        const result = await recognizePlant(picUrl);
         
-        // 异步识别植物（不阻塞响应）
-        recognizePlant(picUrl).then(async (result) => {
-          if (result.success) {
-            // 识别成功，发送客服消息告知结果
-            console.log(`识别成功: ${result.name}, 置信度: ${result.score}`);
-            
-            // 这里可以通过客服消息接口发送详细结果
-            // 由于订阅号限制，暂时只能在首次回复中提示
-          } else {
-            console.log('识别失败:', result.message);
-          }
-        });
+        if (result.success) {
+          const confidence = (result.score * 100).toFixed(1);
+          
+          replyContent = `🌿 识别成功！
+
+植物名称：${result.name}
+置信度：${confidence}%
+
+💡 快速操作：
+添加 ${result.name} - 添加到我的植物
+建议 绿植 - 查看养护建议
+
+回复 0 查看更多功能`;
+          
+          console.log(`✅ 识别成功: ${result.name}, 置信度: ${result.score}`);
+        } else {
+          replyContent = `❌ ${result.message}
+
+请尝试：
+• 拍摄清晰的植物照片
+• 确保光线充足
+• 植物特征明显
+
+回复 0 查看其他功能`;
+          
+          console.log('❌ 识别失败:', result.message);
+        }
       } else {
         replyContent = `❌ 图片接收失败
 
@@ -861,7 +875,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.5.0',
+    version: '0.5.1',
     storage: 'Railway Volume (JSON)',
     features: ['关键词菜单', '植物管理', '养护记录', '数据持久化', '植物分类', '养护备注', '数据统计', 'AI植物识别', '智能养护建议']
   });
