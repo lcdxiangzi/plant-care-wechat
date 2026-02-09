@@ -1,6 +1,6 @@
 {
   "name": "plant-care-wechat",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "植物养护微信公众号 - MVP版本",
   "main": "index.js",
   "scripts": {
