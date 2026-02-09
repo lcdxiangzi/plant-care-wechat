@@ -45,33 +45,87 @@ app.post('/wechat', (req, res) => {
     // 解析XML消息（简单提取）
     const body = req.body || '';
     
-    // 提取ToUserName（公众号）和FromUserName（用户）
+    // 提取关键信息
     const toUserMatch = body.match(/<ToUserName><!\[CDATA\[(.*?)\]\]><\/ToUserName>/);
     const fromUserMatch = body.match(/<FromUserName><!\[CDATA\[(.*?)\]\]><\/FromUserName>/);
     const msgTypeMatch = body.match(/<MsgType><!\[CDATA\[(.*?)\]\]><\/MsgType>/);
+    const eventMatch = body.match(/<Event><!\[CDATA\[(.*?)\]\]><\/Event>/);
+    const eventKeyMatch = body.match(/<EventKey><!\[CDATA\[(.*?)\]\]><\/EventKey>/);
     
     const toUser = toUserMatch ? toUserMatch[1] : '';
     const fromUser = fromUserMatch ? fromUserMatch[1] : '';
     const msgType = msgTypeMatch ? msgTypeMatch[1] : '';
+    const event = eventMatch ? eventMatch[1] : '';
+    const eventKey = eventKeyMatch ? eventKeyMatch[1] : '';
     
-    console.log('解析结果:', { toUser, fromUser, msgType });
+    console.log('解析结果:', { toUser, fromUser, msgType, event, eventKey });
     
-    // 构建回复消息（注意：ToUserName和FromUserName要互换）
-    const replyMessage = `<xml>
-  <ToUserName><![CDATA[${fromUser}]]></ToUserName>
-  <FromUserName><![CDATA[${toUser}]]></FromUserName>
-  <CreateTime>${Math.floor(Date.now() / 1000)}</CreateTime>
-  <MsgType><![CDATA[text]]></MsgType>
-  <Content><![CDATA[🌱 欢迎使用植物养护助手！
+    let replyContent = '';
+    
+    // 处理不同类型的消息
+    if (msgType === 'event') {
+      // 处理事件消息
+      if (event === 'subscribe') {
+        // 关注事件
+        replyContent = `🌱 欢迎关注植物养护助手！
 
-当前版本：v0.1.1（测试版）
+感谢您的关注！我们致力于帮助您更好地照顾您的植物。
+
+当前版本：v0.1.2（测试版）
+
+功能开发中：
+📝 植物管理
+🤖 AI识别
+💡 养护建议
+
+点击菜单开始使用！`;
+      } else if (event === 'CLICK') {
+        // 菜单点击事件
+        if (eventKey === 'CARE_TIPS') {
+          replyContent = `💡 植物养护小贴士
+
+🌿 浇水：见干见湿，不要积水
+☀️ 光照：根据植物习性调整
+🌡️ 温度：避免极端温度
+✂️ 修剪：及时清理枯叶
+
+更多功能开发中...`;
+        } else if (eventKey === 'ABOUT') {
+          replyContent = `🌱 关于植物养护助手
+
+版本：v0.1.2
+状态：测试版
+
+我们的目标：
+让每个人都能轻松养好植物
+
+开发团队：lcdxiangzi
+联系方式：lcdxiangzi@163.com
+
+感谢您的支持！`;
+        }
+      }
+    } else {
+      // 处理普通文本消息
+      replyContent = `🌱 收到您的消息！
+
+当前版本：v0.1.2（测试版）
 
 功能开发中，敬请期待：
 📝 植物管理
 🤖 AI识别
 💡 养护建议
 
-感谢您的关注！]]></Content>
+点击菜单了解更多！`;
+    }
+    
+    // 构建回复消息
+    const replyMessage = `<xml>
+  <ToUserName><![CDATA[${fromUser}]]></ToUserName>
+  <FromUserName><![CDATA[${toUser}]]></FromUserName>
+  <CreateTime>${Math.floor(Date.now() / 1000)}</CreateTime>
+  <MsgType><![CDATA[text]]></MsgType>
+  <Content><![CDATA[${replyContent}]]></Content>
 </xml>`;
     
     console.log('发送回复消息');
@@ -91,6 +145,56 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '0.1.2'
   });
+});
+
+// 创建微信菜单接口
+app.get('/wechat/menu/create', async (req, res) => {
+  try {
+    console.log('开始创建微信菜单...');
+    
+    // 菜单配置
+    const menu = {
+      button: [
+        {
+          type: 'view',
+          name: '我的植物',
+          url: `https://${req.get('host')}/`
+        },
+        {
+          type: 'click',
+          name: '养护知识',
+          key: 'CARE_TIPS'
+        },
+        {
+          type: 'click',
+          name: '关于我们',
+          key: 'ABOUT'
+        }
+      ]
+    };
+    
+    console.log('菜单配置:', JSON.stringify(menu, null, 2));
+    
+    res.json({
+      success: true,
+      message: '菜单配置已准备，请在微信公众平台后台手动创建',
+      menu: menu,
+      instructions: [
+        '1. 登录微信公众平台',
+        '2. 左侧菜单：自定义菜单',
+        '3. 按照上面的menu配置创建菜单',
+        '4. 或使用微信API创建（需要access_token）'
+      ]
+    });
+    
+  } catch (error) {
+    console.error('创建菜单出错:', error);
+    res.status(500).json({
+      success: false,
+      message: '创建菜单失败',
+      error: error.message
+    });
+  }
 });
 
 // 主页
