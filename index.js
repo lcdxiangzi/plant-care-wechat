@@ -323,6 +323,164 @@ function getCareAdvice(plantType) {
   return adviceMap[plantType] || adviceMap['其他'];
 }
 
+// 获取养护周期建议（天数）
+function getCareCycle(plantType, careType) {
+  const cycles = {
+    '绿植': { water: 3, fertilize: 30 },
+    '多肉': { water: 7, fertilize: 60 },
+    '花卉': { water: 2, fertilize: 15 },
+    '其他': { water: 3, fertilize: 30 }
+  };
+  
+  const cycle = cycles[plantType] || cycles['其他'];
+  return cycle[careType] || 3;
+}
+
+// 检查植物是否需要养护
+function checkCareNeeded(plant) {
+  const now = new Date();
+  const plantType = plant.type || '其他';
+  const lastWater = getLastCareTime(plant, 'water');
+  const lastFertilize = getLastCareTime(plant, 'fertilize');
+  
+  const waterCycle = getCareCycle(plantType, 'water');
+  const fertilizeCycle = getCareCycle(plantType, 'fertilize');
+  
+  let needWater = false;
+  let needFertilize = false;
+  let waterDays = 0;
+  let fertilizeDays = 0;
+  
+  if (lastWater) {
+    const waterDate = new Date(lastWater);
+    waterDays = Math.floor((now - waterDate) / (1000 * 60 * 60 * 24));
+    needWater = waterDays >= waterCycle;
+  } else {
+    needWater = true;
+    waterDays = 999;
+  }
+  
+  if (lastFertilize) {
+    const fertilizeDate = new Date(lastFertilize);
+    fertilizeDays = Math.floor((now - fertilizeDate) / (1000 * 60 * 60 * 24));
+    needFertilize = fertilizeDays >= fertilizeCycle;
+  } else {
+    needFertilize = true;
+    fertilizeDays = 999;
+  }
+  
+  return {
+    needWater,
+    needFertilize,
+    waterDays,
+    fertilizeDays,
+    waterCycle,
+    fertilizeCycle
+  };
+}
+
+// 获取养护提醒
+async function getCareReminder(openid, plantName) {
+  const plant = await getPlantDetail(openid, plantName);
+  if (!plant) {
+    return null;
+  }
+  
+  const check = checkCareNeeded(plant);
+  return {
+    plant,
+    check
+  };
+}
+
+// 获取所有需要养护的植物
+async function getAllReminders(openid) {
+  const plants = await getPlants(openid);
+  const reminders = [];
+  
+  for (const plant of plants) {
+    const check = checkCareNeeded(plant);
+    if (check.needWater || check.needFertilize) {
+      reminders.push({
+        plant,
+        check
+      });
+    }
+  }
+  
+  return reminders;
+}
+
+// 添加成长记录
+async function addGrowthRecord(openid, plantName, content) {
+  const allData = await loadUserData();
+  const user = allData[openid];
+  
+  if (!user || !user.plants) {
+    return null;
+  }
+  
+  const plant = user.plants.find(p => p.name === plantName);
+  if (!plant) {
+    return null;
+  }
+  
+  if (!plant.growthRecords) {
+    plant.growthRecords = [];
+  }
+  
+  const record = {
+    content: content,
+    date: new Date().toISOString()
+  };
+  
+  plant.growthRecords.push(record);
+  allData[openid] = user;
+  
+  const saved = await saveUserData(allData);
+  return saved ? record : null;
+}
+
+// 获取养护日历（最近7天）
+async function getCareCalendar(openid, days = 7) {
+  const plants = await getPlants(openid);
+  const now = new Date();
+  const calendar = [];
+  
+  for (let i = 0; i < days; i++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toLocaleDateString('zh-CN');
+    
+    const dayRecords = [];
+    
+    plants.forEach(plant => {
+      if (plant.careRecords) {
+        plant.careRecords.forEach(record => {
+          const recordDate = new Date(record.date);
+          if (recordDate.toLocaleDateString('zh-CN') === dateStr) {
+            dayRecords.push({
+              plantName: plant.name,
+              type: record.type,
+              note: record.note,
+              time: recordDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            });
+          }
+        });
+      }
+    });
+    
+    if (dayRecords.length > 0) {
+      calendar.push({
+        date: dateStr,
+        records: dayRecords
+      });
+    }
+  }
+  
+  return calendar;
+}
+
 // 中间件
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -396,13 +554,26 @@ app.post('/wechat', async (req, res) => {
 0️⃣ 显示菜单
 
 💡 快速开始：
-回复"添加 植物名称"来添加您的第一株植物
-例如：添加 绿萝
+回复"添加 植物名称 类型"来添加您的第一株植物
+例如：添加 绿萝 绿植
 
 💧 养护记录：
 浇水 植物名称 - 记录浇水
 施肥 植物名称 - 记录施肥
 详情 植物名称 - 查看养护历史
+
+📝 成长记录：
+记录 植物名称 内容 - 记录成长变化
+
+⏰ 智能提醒：
+提醒 - 查看需要养护的植物
+提醒 植物名称 - 查看详细提醒
+
+📅 养护日历：
+日历 - 查看最近7天的养护记录
+
+📷 AI识别：
+发送植物图片 - 自动识别植物
 
 直接发送消息开始对话！`;
       } else if (event === 'CLICK') {
@@ -604,7 +775,7 @@ app.post('/wechat', async (req, res) => {
 💧 浇水记录：${lastWater ? formatTimeDiff(lastWater) : '暂无记录'}
 🌿 施肥记录：${lastFertilize ? formatTimeDiff(lastFertilize) : '暂无记录'}`;
 
-            // 显示最近5条记录
+            // 显示最近5条养护记录
             if (plant.careRecords && plant.careRecords.length > 0) {
               const recentRecords = plant.careRecords.slice(-5).reverse();
               detailText += '\n\n📋 最近养护：';
@@ -620,9 +791,21 @@ app.post('/wechat', async (req, res) => {
               });
             }
             
+            // 显示最近3条成长记录
+            if (plant.growthRecords && plant.growthRecords.length > 0) {
+              const recentGrowth = plant.growthRecords.slice(-3).reverse();
+              detailText += '\n\n🌟 成长记录：';
+              recentGrowth.forEach(r => {
+                const time = formatTimeDiff(r.date);
+                detailText += `\n📝 ${time} - ${r.content}`;
+              });
+            }
+            
             detailText += '\n\n💡 快捷操作：';
             detailText += `\n浇水 ${plantName}`;
             detailText += `\n施肥 ${plantName}`;
+            detailText += `\n记录 ${plantName} 内容`;
+            detailText += `\n提醒 ${plantName}`;
             detailText += '\n\n回复 0 返回菜单';
             
             replyContent = detailText;
@@ -640,6 +823,8 @@ app.post('/wechat', async (req, res) => {
 2️⃣ 养护知识
 3️⃣ 关于我们
 📊 统计 - 查看数据
+⏰ 提醒 - 养护提醒
+📅 日历 - 养护日历
 
 🌱 植物管理：
 添加 植物名称 类型 - 添加新植物
@@ -649,6 +834,13 @@ app.post('/wechat', async (req, res) => {
 浇水 植物名称 备注 - 记录浇水
 施肥 植物名称 备注 - 记录施肥
 详情 植物名称 - 查看详情
+
+📝 成长记录：
+记录 植物名称 内容 - 记录成长
+
+⏰ 养护提醒：
+提醒 植物名称 - 查看提醒
+提醒 - 查看所有提醒
 
 直接发送消息开始对话！`;
       } else if (content === '统计' || content === 'stats' || content === '数据') {
@@ -763,11 +955,192 @@ ${plantList}
           const advice = getCareAdvice(input);
           replyContent = advice + '\n\n回复 0 返回菜单';
         }
+      } else if (content.startsWith('提醒 ') || content.startsWith('提醒')) {
+        // 查看单个植物的养护提醒
+        const plantName = content.replace(/^提醒\s*/, '').trim();
+        
+        if (!plantName) {
+          replyContent = `⏰ 养护提醒
+
+请输入植物名称：
+
+提醒 植物名称
+
+例如：
+提醒 绿萝
+
+或回复"提醒"查看所有需要养护的植物`;
+        } else {
+          const reminder = await getCareReminder(fromUser, plantName);
+          if (reminder) {
+            const { plant, check } = reminder;
+            const plantType = plant.type || '其他';
+            
+            let reminderText = `⏰ ${plant.name} 养护提醒\n🏷️ 类型：${plantType}\n\n`;
+            
+            if (check.needWater) {
+              if (check.waterDays === 999) {
+                reminderText += `💧 浇水：还未浇过水\n`;
+              } else {
+                reminderText += `💧 浇水：已${check.waterDays}天未浇水\n`;
+              }
+              reminderText += `   建议周期：${check.waterCycle}天\n`;
+              reminderText += `   ⚠️ 该浇水了！\n\n`;
+            } else {
+              const nextWater = check.waterCycle - check.waterDays;
+              reminderText += `💧 浇水：${check.waterDays}天前已浇水\n`;
+              reminderText += `   ${nextWater}天后需要浇水\n\n`;
+            }
+            
+            if (check.needFertilize) {
+              if (check.fertilizeDays === 999) {
+                reminderText += `🌿 施肥：还未施过肥\n`;
+              } else {
+                reminderText += `🌿 施肥：已${check.fertilizeDays}天未施肥\n`;
+              }
+              reminderText += `   建议周期：${check.fertilizeCycle}天\n`;
+              reminderText += `   ⚠️ 该施肥了！\n\n`;
+            } else {
+              const nextFertilize = check.fertilizeCycle - check.fertilizeDays;
+              reminderText += `🌿 施肥：${check.fertilizeDays}天前已施肥\n`;
+              reminderText += `   ${nextFertilize}天后需要施肥\n\n`;
+            }
+            
+            reminderText += `💡 快捷操作：\n`;
+            reminderText += `浇水 ${plant.name}\n`;
+            reminderText += `施肥 ${plant.name}\n`;
+            reminderText += `详情 ${plant.name}`;
+            
+            replyContent = reminderText;
+          } else {
+            replyContent = `❌ 未找到植物：${plantName}
+
+回复"1"或"我的植物"查看当前列表`;
+          }
+        }
+      } else if (content === '提醒' || content === 'remind' || content === '提醒列表') {
+        // 查看所有需要养护的植物
+        const reminders = await getAllReminders(fromUser);
+        
+        if (reminders.length === 0) {
+          replyContent = `✅ 所有植物状态良好
+
+暂无需要养护的植物
+
+回复"1"查看我的植物`;
+        } else {
+          let reminderText = `⏰ 养护提醒（${reminders.length}株需要照顾）\n\n`;
+          
+          reminders.forEach((reminder, index) => {
+            const { plant, check } = reminder;
+            reminderText += `${index + 1}. ${plant.name}\n`;
+            
+            if (check.needWater) {
+              if (check.waterDays === 999) {
+                reminderText += `   💧 还未浇过水\n`;
+              } else {
+                reminderText += `   💧 ${check.waterDays}天未浇水\n`;
+              }
+            }
+            
+            if (check.needFertilize) {
+              if (check.fertilizeDays === 999) {
+                reminderText += `   🌿 还未施过肥\n`;
+              } else {
+                reminderText += `   🌿 ${check.fertilizeDays}天未施肥\n`;
+              }
+            }
+            
+            reminderText += '\n';
+          });
+          
+          reminderText += `💡 查看详细提醒：\n提醒 植物名称\n\n回复 0 返回菜单`;
+          replyContent = reminderText;
+        }
+      } else if (content.startsWith('记录 ') || content.startsWith('记录')) {
+        // 添加成长记录
+        const input = content.replace(/^记录\s*/, '').trim();
+        
+        if (!input) {
+          replyContent = `📝 成长记录
+
+请输入植物名称和记录内容：
+
+记录 植物名称 内容
+
+例如：
+记录 绿萝 长出新叶子了
+记录 多肉 叶片变厚实了`;
+        } else {
+          const parts = input.split(/\s+/);
+          const plantName = parts[0];
+          const recordContent = parts.slice(1).join(' ');
+          
+          if (!recordContent) {
+            replyContent = `❌ 请输入记录内容
+
+正确格式：
+记录 ${plantName} 内容
+
+例如：
+记录 ${plantName} 长出新叶子了`;
+          } else {
+            const record = await addGrowthRecord(fromUser, plantName, recordContent);
+            if (record) {
+              replyContent = `✅ 记录成功！
+
+🌱 植物：${plantName}
+📝 内容：${recordContent}
+📅 时间：${new Date(record.date).toLocaleString('zh-CN')}
+
+回复"详情 ${plantName}"查看所有记录`;
+            } else {
+              replyContent = `❌ 未找到植物：${plantName}
+
+请先添加植物
+回复"添加 ${plantName}"`;
+            }
+          }
+        }
+      } else if (content === '日历' || content === 'calendar' || content === '养护日历') {
+        // 查看养护日历
+        const calendar = await getCareCalendar(fromUser, 7);
+        
+        if (calendar.length === 0) {
+          replyContent = `📅 养护日历
+
+最近7天暂无养护记录
+
+💡 开始记录：
+浇水 植物名称
+施肥 植物名称
+
+回复 0 返回菜单`;
+        } else {
+          let calendarText = `📅 养护日历（最近7天）\n\n`;
+          
+          calendar.forEach(day => {
+            calendarText += `📆 ${day.date}\n`;
+            day.records.forEach(record => {
+              const icon = record.type === 'water' ? '💧' : '🌿';
+              const action = record.type === 'water' ? '浇水' : '施肥';
+              calendarText += `   ${icon} ${record.time} ${action} ${record.plantName}`;
+              if (record.note) {
+                calendarText += ` - ${record.note}`;
+              }
+              calendarText += '\n';
+            });
+            calendarText += '\n';
+          });
+          
+          calendarText += '回复 0 返回菜单';
+          replyContent = calendarText;
+        }
       } else if (content === '3' || content.includes('关于') || content.includes('联系')) {
         replyContent = `🌱 关于植物养护助手
 
-版本：v0.2.0
-状态：测试版
+版本：v0.6.0
+状态：稳定版
 
 📌 项目目标
 让每个人都能轻松养好植物
@@ -791,11 +1164,13 @@ AI对话功能开发中...
 回复 0 查看功能菜单
 回复 1 查看我的植物
 回复 2 查看养护知识
-回复 3 查看关于我们
+回复 提醒 查看养护提醒
+回复 日历 查看养护日历
 
 🌿 植物管理：
 添加 植物名称 - 添加新植物
-删除 植物名称 - 删除植物`;
+删除 植物名称 - 删除植物
+记录 植物名称 内容 - 记录成长`;
       }
     } else if (msgType === 'image') {
       // 处理图片消息 - AI 植物识别（同步等待结果）
@@ -875,9 +1250,9 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.5.1',
+    version: '0.6.0',
     storage: 'Railway Volume (JSON)',
-    features: ['关键词菜单', '植物管理', '养护记录', '数据持久化', '植物分类', '养护备注', '数据统计', 'AI植物识别', '智能养护建议']
+    features: ['关键词菜单', '植物管理', '养护记录', '数据持久化', '植物分类', '养护备注', '数据统计', 'AI植物识别', '智能养护建议', '养护提醒', '成长记录', '养护日历']
   });
 });
 
