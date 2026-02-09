@@ -1,17 +1,17 @@
-v0.1.6 - 添加配置诊断功能
+v0.1.7 - 增强错误诊断
 
 新增功能：
-- 添加 /wechat/config/check 接口用于检查环境变量配置
-- 显示 WECHAT_TOKEN、WECHAT_APPID、WECHAT_APPSECRET 配置状态
-- 创建 MENU_SETUP.md 详细配置指南
+- 增强 access_token 获取的详细日志
+- 菜单创建接口返回微信API完整响应
+- 添加调试信息帮助定位问题
 
-使用方法：
-1. 部署后访问 /wechat/config/check 检查配置
-2. 如果 WECHAT_APPSECRET 未配置，在 Railway 添加环境变量
-3. 配置完成后访问 /wechat/menu/create 创建菜单
+调试改进：
+- 显示 AppID 和 AppSecret 前8位
+- 显示微信API返回的错误码和错误信息
+- 针对常见错误提供解决建议
 
 文件变更：
-- index.js: 添加配置检查接口
-- package.json: 版本更新至 0.1.6
+- index.js: 增强错误日志和调试信息
+- package.json: 版本更新至 0.1.7
 - VERSION.md: 添加版本记录
-- MENU_SETUP.md: 新增配置指南
+- COMMIT_MESSAGE.txt: 更新提交说明

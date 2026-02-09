@@ -218,7 +218,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.1.6',
+    version: '0.1.7',
     note: '订阅号使用关键词菜单替代自定义菜单'
   });
 });
@@ -242,7 +242,12 @@ app.get('/wechat/config/check', (req, res) => {
 async function getAccessToken() {
   try {
     const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WECHAT_APPID}&secret=${WECHAT_APPSECRET}`;
+    console.log('正在获取access_token...');
+    console.log('AppID:', WECHAT_APPID);
+    console.log('AppSecret前8位:', WECHAT_APPSECRET ? WECHAT_APPSECRET.substring(0, 8) : '未配置');
+    
     const response = await axios.get(url);
+    console.log('微信API响应:', response.data);
     
     if (response.data.access_token) {
       console.log('✅ 获取access_token成功');
@@ -253,6 +258,9 @@ async function getAccessToken() {
     }
   } catch (error) {
     console.error('❌ 获取access_token异常:', error.message);
+    if (error.response) {
+      console.error('响应数据:', error.response.data);
+    }
     return null;
   }
 }
@@ -279,9 +287,19 @@ app.get('/wechat/menu/create', async (req, res) => {
     // 获取access_token
     const accessToken = await getAccessToken();
     if (!accessToken) {
+      // 尝试直接调用微信API获取详细错误
+      const testUrl = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WECHAT_APPID}&secret=${WECHAT_APPSECRET}`;
+      const testResponse = await axios.get(testUrl);
+      
       return res.json({
         success: false,
-        message: '获取access_token失败，请检查AppID和AppSecret是否正确'
+        message: '获取access_token失败，请检查AppID和AppSecret是否正确',
+        debug: {
+          appid: WECHAT_APPID,
+          appsecret_prefix: WECHAT_APPSECRET.substring(0, 8),
+          wechat_response: testResponse.data
+        },
+        help: '请登录微信公众平台 > 开发 > 基本配置，确认AppID和AppSecret'
       });
     }
     
@@ -322,7 +340,10 @@ app.get('/wechat/menu/create', async (req, res) => {
       res.json({
         success: false,
         message: '菜单创建失败',
-        error: createResponse.data
+        error: createResponse.data,
+        help: createResponse.data.errcode === 65301 ? 
+          '订阅号（未认证）没有自定义菜单权限，请使用关键词菜单（回复 0 查看）' : 
+          '请查看微信公众平台文档了解错误码含义'
       });
     }
     
@@ -331,7 +352,8 @@ app.get('/wechat/menu/create', async (req, res) => {
     res.status(500).json({
       success: false,
       message: '创建菜单失败',
-      error: error.message
+      error: error.message,
+      details: error.response ? error.response.data : null
     });
   }
 });
