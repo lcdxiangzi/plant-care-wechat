@@ -74,16 +74,15 @@ app.post('/wechat', (req, res) => {
 
 感谢您的关注！我们致力于帮助您更好地照顾您的植物。
 
-当前版本：v0.1.2（测试版）
+📋 快捷菜单（回复数字）：
+1️⃣ 我的植物
+2️⃣ 养护知识
+3️⃣ 关于我们
+0️⃣ 显示菜单
 
-功能开发中：
-📝 植物管理
-🤖 AI识别
-💡 养护建议
-
-点击菜单开始使用！`;
+直接发送消息开始对话！`;
       } else if (event === 'CLICK') {
-        // 菜单点击事件
+        // 菜单点击事件（服务号/认证订阅号才有）
         if (eventKey === 'CARE_TIPS') {
           replyContent = `💡 植物养护小贴士
 
@@ -92,11 +91,11 @@ app.post('/wechat', (req, res) => {
 🌡️ 温度：避免极端温度
 ✂️ 修剪：及时清理枯叶
 
-更多功能开发中...`;
+回复 0 返回菜单`;
         } else if (eventKey === 'ABOUT') {
           replyContent = `🌱 关于植物养护助手
 
-版本：v0.1.2
+版本：v0.1.5
 状态：测试版
 
 我们的目标：
@@ -105,21 +104,94 @@ app.post('/wechat', (req, res) => {
 开发团队：lcdxiangzi
 联系方式：lcdxiangzi@163.com
 
-感谢您的支持！`;
+回复 0 返回菜单`;
         }
       }
+    } else if (msgType === 'text') {
+      // 处理文本消息 - 提取消息内容
+      const contentMatch = body.match(/<Content><!\[CDATA\[(.*?)\]\]><\/Content>/);
+      const content = contentMatch ? contentMatch[1].trim() : '';
+      
+      console.log('收到文本消息:', content);
+      
+      // 关键词匹配
+      if (content === '0' || content === '菜单' || content === 'menu') {
+        replyContent = `📋 快捷菜单
+
+回复对应数字查看：
+1️⃣ 我的植物
+2️⃣ 养护知识
+3️⃣ 关于我们
+
+直接发送消息开始对话！`;
+      } else if (content === '1' || content.includes('我的植物') || content.includes('植物列表')) {
+        replyContent = `🌿 我的植物
+
+功能开发中...
+
+未来功能：
+📝 添加植物
+📊 查看列表
+⏰ 养护提醒
+📸 成长记录
+
+回复 0 返回菜单`;
+      } else if (content === '2' || content.includes('养护') || content.includes('知识')) {
+        replyContent = `💡 植物养护知识
+
+🌿 浇水技巧
+见干见湿，不要积水
+不同植物需水量不同
+
+☀️ 光照管理
+喜阳植物：充足光照
+喜阴植物：散射光
+
+🌡️ 温度控制
+避免极端温度
+注意季节变化
+
+✂️ 日常养护
+及时清理枯叶
+定期检查病虫害
+
+回复 0 返回菜单`;
+      } else if (content === '3' || content.includes('关于') || content.includes('联系')) {
+        replyContent = `🌱 关于植物养护助手
+
+版本：v0.1.5
+状态：测试版
+
+📌 项目目标
+让每个人都能轻松养好植物
+
+👨‍💻 开发团队
+lcdxiangzi
+
+📧 联系方式
+lcdxiangzi@163.com
+
+🙏 感谢您的支持！
+
+回复 0 返回菜单`;
+      } else {
+        // 默认回复
+        replyContent = `🌱 收到您的消息：${content}
+
+AI对话功能开发中...
+
+💡 提示：
+回复 0 查看功能菜单
+回复 1 查看我的植物
+回复 2 查看养护知识
+回复 3 查看关于我们`;
+      }
     } else {
-      // 处理普通文本消息
+      // 其他类型消息
       replyContent = `🌱 收到您的消息！
 
-当前版本：v0.1.2（测试版）
-
-功能开发中，敬请期待：
-📝 植物管理
-🤖 AI识别
-💡 养护建议
-
-点击菜单了解更多！`;
+当前支持文本消息
+回复 0 查看功能菜单`;
     }
     
     // 构建回复消息
@@ -146,7 +218,23 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.1.4'
+    version: '0.1.6',
+    note: '订阅号使用关键词菜单替代自定义菜单'
+  });
+});
+
+// 配置检查接口（用于诊断）
+app.get('/wechat/config/check', (req, res) => {
+  res.json({
+    message: '环境变量配置检查',
+    config: {
+      WECHAT_TOKEN: WECHAT_TOKEN ? '✅ 已配置' : '❌ 未配置',
+      WECHAT_APPID: WECHAT_APPID ? `✅ 已配置 (${WECHAT_APPID})` : '❌ 未配置',
+      WECHAT_APPSECRET: WECHAT_APPSECRET ? `✅ 已配置 (${WECHAT_APPSECRET.substring(0, 8)}...)` : '❌ 未配置'
+    },
+    instructions: WECHAT_APPSECRET ? 
+      '所有配置正常，可以访问 /wechat/menu/create 创建菜单' :
+      '请在Railway配置WECHAT_APPSECRET环境变量后重新部署'
   });
 });
 
