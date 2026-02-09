@@ -1,6 +1,39 @@
 # 版本历史
 
-## v0.3.1 - 修复数据持久化问题 🚧 (2026-02-09)
+## v0.3.2 - 使用 PostgreSQL 数据库 🚧 (2026-02-09)
+
+### 问题修复
+- [x] 使用 Railway PostgreSQL 数据库持久化
+- [x] 创建数据存储适配器（支持 JSON 和 PostgreSQL）
+- [x] 自动检测环境，智能切换存储方式
+- [x] 本地开发使用 JSON，生产环境使用数据库
+
+### 技术实现
+- 新增 db.js 数据存储适配器
+- 支持 PostgreSQL 和 JSON 文件双模式
+- 自动初始化数据库表
+- 事务支持，保证数据一致性
+
+### 配置说明
+在 Railway 添加 PostgreSQL 数据库：
+1. 点击 "+ New" > "Database" > "Add PostgreSQL"
+2. Railway 自动配置 DATABASE_URL
+3. 重新部署即可
+
+详见：RAILWAY_POSTGRES_SETUP.md
+
+### 部署信息
+- **域名**: web-production-61069.up.railway.app
+- **状态**: 🚧 待添加数据库
+- **Git Tag**: v0.3.2
+- **回退版本**: v0.2.0
+
+---
+
+## v0.3.1 - 修复数据持久化问题 ⚠️ (2026-02-09)
+
+### 已知问题
+❌ Railway 不支持 Volume（或需要付费）
 
 ### 问题修复
 - [x] 支持 Railway Volume 持久化存储

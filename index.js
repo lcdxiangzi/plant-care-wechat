@@ -1,8 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
-const fs = require('fs').promises;
-const path = require('path');
+const dataStore = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,41 +11,14 @@ const WECHAT_TOKEN = process.env.WECHAT_TOKEN || 'plant_care_token_2024';
 const WECHAT_APPID = process.env.WECHAT_APPID || 'wx1dd6d394f46a502d';
 const WECHAT_APPSECRET = process.env.WECHAT_APPSECRET || '';
 
-// 数据文件路径 - 使用环境变量支持 Railway Volume
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-
-// 确保数据目录存在
-async function ensureDataDir() {
-  try {
-    await fs.access(DATA_DIR);
-  } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
-}
-
 // 读取用户数据
 async function loadUserData() {
-  try {
-    await ensureDataDir();
-    const data = await fs.readFile(USERS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    // 文件不存在或解析失败，返回空对象
-    return {};
-  }
+  return await dataStore.loadAllData();
 }
 
 // 保存用户数据
 async function saveUserData(data) {
-  try {
-    await ensureDataDir();
-    await fs.writeFile(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('保存数据失败:', error);
-    return false;
-  }
+  return await dataStore.saveAllData(data);
 }
 
 // 获取用户信息
@@ -605,7 +577,8 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.3.1',
+    version: '0.3.2',
+    storage: dataStore.getStorageType(),
     features: ['关键词菜单', '植物管理', '养护记录', '数据持久化']
   });
 });
