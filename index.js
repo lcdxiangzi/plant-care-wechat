@@ -12,8 +12,8 @@ const WECHAT_TOKEN = process.env.WECHAT_TOKEN || 'plant_care_token_2024';
 const WECHAT_APPID = process.env.WECHAT_APPID || 'wx1dd6d394f46a502d';
 const WECHAT_APPSECRET = process.env.WECHAT_APPSECRET || '';
 
-// 数据文件路径
-const DATA_DIR = path.join(__dirname, 'data');
+// 数据文件路径 - 使用环境变量支持 Railway Volume
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 // 确保数据目录存在
@@ -605,7 +605,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.3.0',
+    version: '0.3.1',
     features: ['关键词菜单', '植物管理', '养护记录', '数据持久化']
   });
 });
