@@ -1,11 +1,14 @@
 const express = require('express');
 const crypto = require('crypto');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 微信配置
 const WECHAT_TOKEN = process.env.WECHAT_TOKEN || 'plant_care_token_2024';
+const WECHAT_APPID = process.env.WECHAT_APPID || 'wx1dd6d394f46a502d';
+const WECHAT_APPSECRET = process.env.WECHAT_APPSECRET || '';
 
 // 中间件
 app.use(express.json());
@@ -143,14 +146,56 @@ app.get('/health', (req, res) => {
     status: 'ok',
     message: '植物养护系统运行正常',
     timestamp: new Date().toISOString(),
-    version: '0.1.2'
+    version: '0.1.4'
   });
 });
 
-// 创建微信菜单接口
+// 获取微信access_token
+async function getAccessToken() {
+  try {
+    const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WECHAT_APPID}&secret=${WECHAT_APPSECRET}`;
+    const response = await axios.get(url);
+    
+    if (response.data.access_token) {
+      console.log('✅ 获取access_token成功');
+      return response.data.access_token;
+    } else {
+      console.error('❌ 获取access_token失败:', response.data);
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ 获取access_token异常:', error.message);
+    return null;
+  }
+}
+
+// 创建微信菜单接口（自动调用微信API）
 app.get('/wechat/menu/create', async (req, res) => {
   try {
     console.log('开始创建微信菜单...');
+    
+    // 检查AppSecret是否配置
+    if (!WECHAT_APPSECRET) {
+      return res.json({
+        success: false,
+        message: '请先在Railway配置WECHAT_APPSECRET环境变量',
+        instructions: [
+          '1. 进入Railway项目',
+          '2. 点击Variables标签',
+          '3. 添加: WECHAT_APPSECRET=你的AppSecret',
+          '4. 重新部署后再访问此接口'
+        ]
+      });
+    }
+    
+    // 获取access_token
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      return res.json({
+        success: false,
+        message: '获取access_token失败，请检查AppID和AppSecret是否正确'
+      });
+    }
     
     // 菜单配置
     const menu = {
@@ -173,19 +218,25 @@ app.get('/wechat/menu/create', async (req, res) => {
       ]
     };
     
-    console.log('菜单配置:', JSON.stringify(menu, null, 2));
+    // 调用微信API创建菜单
+    const createUrl = `https://api.weixin.qq.com/cgi-bin/menu/create?access_token=${accessToken}`;
+    const createResponse = await axios.post(createUrl, menu);
     
-    res.json({
-      success: true,
-      message: '菜单配置已准备，请在微信公众平台后台手动创建',
-      menu: menu,
-      instructions: [
-        '1. 登录微信公众平台',
-        '2. 左侧菜单：自定义菜单',
-        '3. 按照上面的menu配置创建菜单',
-        '4. 或使用微信API创建（需要access_token）'
-      ]
-    });
+    console.log('微信API响应:', createResponse.data);
+    
+    if (createResponse.data.errcode === 0) {
+      res.json({
+        success: true,
+        message: '✅ 菜单创建成功！请在微信中查看（可能需要取消关注再重新关注才能看到新菜单）',
+        menu: menu
+      });
+    } else {
+      res.json({
+        success: false,
+        message: '菜单创建失败',
+        error: createResponse.data
+      });
+    }
     
   } catch (error) {
     console.error('创建菜单出错:', error);
