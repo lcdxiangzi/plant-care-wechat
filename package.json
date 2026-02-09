@@ -1,7 +1,7 @@
 {
   "name": "plant-care-wechat",
-  "version": "0.3.3",
-  "description": "植物养护微信公众号 - 支持养护记录",
+  "version": "0.4.0",
+  "description": "植物养护微信公众号 - 支持分类和统计",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
