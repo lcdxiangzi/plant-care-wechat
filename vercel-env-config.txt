@@ -1,8 +1,0 @@
-NODE_ENV=production
-WECHAT_APP_ID=wx1dd6d394f46a502d
-WECHAT_APP_SECRET=你的微信AppSecret
-WECHAT_TOKEN=plant_care_token_2024
-JWT_SECRET=plant_care_jwt_2024_lcdxiangzi_secure
-BAIDU_API_KEY=你的百度API密钥
-BAIDU_SECRET_KEY=你的百度Secret密钥
-USE_MEMORY_DB=true
